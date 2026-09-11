@@ -1,0 +1,45 @@
+# ============================================
+# SolutionBundler publish-v14
+# Keep published application files in Git
+# ============================================
+
+# Windows temporary files
+Thumbs.db
+Thumbs.db:encryptable
+Desktop.ini
+$RECYCLE.BIN/
+*.tmp
+*.temp
+
+# Logs
+*.log
+
+# Visual Studio / VS Code / JetBrains
+.vs/
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Build directories if accidentally created here
+bin/
+obj/
+
+# Test / coverage artifacts
+TestResults/
+coverage/
+coverage.*
+*.coverage
+*.coveragexml
+
+# NuGet temporary/package artifacts
+*.nupkg
+*.snupkg
+
+# Backup files
+*.bak
+*.backup
+*.old
+*~
