@@ -166,14 +166,28 @@
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="*"/>
                                 </Grid.RowDefinitions>
-                                <DockPanel Margin="0,0,0,10">
-                                    <TextBlock Text="پسوندها" Style="{StaticResource SectionTitle}"/>
-                                    <Button Content="اسکن" HorizontalAlignment="Left" Padding="16,6" Click="ScanExtensions_Click"/>
-                                </DockPanel>
-                                <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,8">
-                                    <Button Content="انتخاب همه" Click="SelectAllExtensions_Click"/>
-                                    <Button Content="لغو همه" Margin="7,0,0,0" Click="ClearExtensions_Click"/>
-                                </StackPanel>
+                                <Grid Margin="0,0,0,12" FlowDirection="LeftToRight">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Button Grid.Column="0" Content="اسکن پسوندها" MinWidth="112" Padding="14,7"
+                                            VerticalAlignment="Top" Click="ScanExtensions_Click"/>
+                                    <TextBlock Grid.Column="1" Text="پسوندها" Style="{StaticResource SectionTitle}"
+                                               FlowDirection="RightToLeft" HorizontalAlignment="Right"
+                                               VerticalAlignment="Center" Margin="12,0,0,0"/>
+                                </Grid>
+                                <Grid Grid.Row="1" Margin="0,0,0,10" FlowDirection="LeftToRight">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <Button Grid.Column="1" Content="لغو همه" MinWidth="92" Padding="12,6"
+                                            Click="ClearExtensions_Click"/>
+                                    <Button Grid.Column="2" Content="انتخاب همه" MinWidth="92" Padding="12,6"
+                                            Margin="8,0,0,0" Click="SelectAllExtensions_Click"/>
+                                </Grid>
                                 <ListBox Grid.Row="2" x:Name="ExtensionList" ItemsSource="{Binding Extensions}"
                                          Height="430" MinHeight="300" BorderThickness="0" Background="Transparent"
                                          ScrollViewer.VerticalScrollBarVisibility="Auto"
