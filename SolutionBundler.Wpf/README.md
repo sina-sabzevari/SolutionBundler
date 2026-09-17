@@ -21,6 +21,8 @@ dotnet run --project .\SolutionBundler.Wpf.csproj
 
 ## انتشار
 
+> **پیش‌نیاز Release:** فایل اجرایی منتشرشده به **.NET 10 Desktop Runtime** نیاز دارد.
+
 ```powershell
 dotnet publish .\SolutionBundler.Wpf.csproj -c Release --self-contained false -o .\publish
 ```
