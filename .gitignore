@@ -7,6 +7,10 @@
 # Packaged binaries
 *.rar
 *.zip
+!releases/*.zip
+
+# Legacy WinForms project is kept locally but is not published.
+SolutionBundler/
 
 # User and IDE files
 .vs/
