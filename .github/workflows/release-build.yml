@@ -1,0 +1,55 @@
+name: Build release artifact
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows-x64:
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Install .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore dependencies
+        run: dotnet restore .\SolutionBundler.Wpf\SolutionBundler.Wpf.csproj -r win-x64 --locked-mode
+
+      - name: Build and publish single-file executable
+        run: >-
+          dotnet publish .\SolutionBundler.Wpf\SolutionBundler.Wpf.csproj
+          -c Release
+          -r win-x64
+          --self-contained false
+          --no-restore
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:DebugType=None
+          -o .\artifacts\win-x64
+
+      - name: Create SHA-256 checksum
+        shell: pwsh
+        run: |
+          $file = Get-Item .\artifacts\win-x64\SolutionBundler.Modern.exe
+          $hash = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $($file.Name)" | Set-Content .\artifacts\win-x64\SHA256SUMS.txt -Encoding ascii
+
+      - name: Upload unsigned release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: SolutionBundler-win-x64-unsigned
+          path: |
+            .\artifacts\win-x64\SolutionBundler.Modern.exe
+            .\artifacts\win-x64\SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30

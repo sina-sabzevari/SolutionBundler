@@ -23,3 +23,11 @@
 ## سورس برنامه
 
 سورس نسخه‌ی مدرن WPF در پوشه‌ی [`SolutionBundler.Wpf`](SolutionBundler.Wpf) قرار دارد.
+
+## حریم خصوصی و امضای کد
+
+- [Privacy Policy](PRIVACY.md)
+- [Code signing policy](CODE_SIGNING_POLICY.md)
+- [Third-party notices](THIRD-PARTY-NOTICES.md)
+
+این پروژه تحت [مجوز MIT](LICENSE) منتشر می‌شود. Build رسمی فایل اجرایی توسط Workflow موجود در `.github/workflows/release-build.yml` تولید می‌شود. پروژه برای دریافت امضای رایگان از SignPath Foundation آماده شده است؛ تا زمان پذیرش و فعال‌شدن امضا، فایل‌های Release با عنوان unsigned منتشر می‌شوند.

@@ -8,6 +8,18 @@
     <NoWarn>$(NoWarn);WPF0001</NoWarn>
     <AssemblyName>SolutionBundler.Modern</AssemblyName>
     <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
+    <Version>10.0.0</Version>
+    <AssemblyVersion>10.0.0.0</AssemblyVersion>
+    <FileVersion>10.0.0.0</FileVersion>
+    <InformationalVersion>10.0.0</InformationalVersion>
+    <Authors>Sina Sabzevari</Authors>
+    <Company>Sina Sabzevari</Company>
+    <Product>Solution Bundler</Product>
+    <AssemblyTitle>Solution Bundler</AssemblyTitle>
+    <Description>Export selected solution files and optional SQL Server and Redis data to text or ZIP.</Description>
+    <Copyright>Copyright © 2026 Sina Sabzevari</Copyright>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.2" />
