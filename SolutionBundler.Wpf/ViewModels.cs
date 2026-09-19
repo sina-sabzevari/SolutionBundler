@@ -109,3 +109,13 @@ public sealed class SchemaNode : INotifyPropertyChanged
 }
 
 public sealed record ConnectionChoice(string DisplayName, string Value);
+
+public sealed class HiddenFolderNode
+{
+    public required string Name { get; init; }
+    public required string Path { get; init; }
+    public required string Icon { get; init; }
+    public bool IsHiddenEntry { get; init; }
+    public bool IsChecked { get; set; }
+    public ObservableCollection<HiddenFolderNode> Children { get; } = [];
+}

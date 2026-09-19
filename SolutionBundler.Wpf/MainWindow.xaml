@@ -26,7 +26,8 @@
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
                 <CheckBox Grid.Column="0" IsChecked="{Binding IsChecked, Mode=TwoWay}"
-                          VerticalAlignment="Center" Margin="0,0,7,0"/>
+                          VerticalAlignment="Center" Margin="0,0,7,0"
+                          PreviewMouseLeftButtonDown="ProjectNodeCheckBox_PreviewMouseLeftButtonDown"/>
                 <TextBlock Grid.Column="1" Text="{Binding Icon}" FontFamily="Segoe Fluent Icons" FontSize="16"
                            HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center"
                            Foreground="{DynamicResource {x:Static SystemColors.AccentColorBrushKey}}">
@@ -138,13 +139,21 @@
                                     <RowDefinition Height="Auto"/>
                                     <RowDefinition Height="*"/>
                                 </Grid.RowDefinitions>
-                                <DockPanel Margin="0,0,0,10">
-                                    <TextBlock Text="پروژه‌ها و پوشه‌ها" Style="{StaticResource SectionTitle}" DockPanel.Dock="Right"/>
-                                    <StackPanel Orientation="Horizontal" FlowDirection="LeftToRight" HorizontalAlignment="Left">
+                                <Grid Margin="0,0,0,10" FlowDirection="LeftToRight">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <WrapPanel Grid.Column="0" VerticalAlignment="Top">
                                         <Button Content="★" ToolTip="افزودن Favorite" Click="AddFavorite_Click"/>
                                         <Button Content="☆" ToolTip="حذف Favorite" Margin="6,0,0,0" Click="RemoveFavorite_Click"/>
-                                    </StackPanel>
-                                </DockPanel>
+                                        <Button Content="پنهان کردن" Margin="6,0,0,0" Padding="10,6" Click="HideFolder_Click"/>
+                                        <Button Content="پوشه‌های پنهان" Margin="6,0,0,0" Padding="10,6" Click="ShowHiddenFolders_Click"/>
+                                    </WrapPanel>
+                                    <TextBlock Grid.Column="1" Text="پروژه‌ها و پوشه‌ها" Style="{StaticResource SectionTitle}"
+                                               FlowDirection="RightToLeft" HorizontalAlignment="Right"
+                                               VerticalAlignment="Center" Margin="12,0,0,0"/>
+                                </Grid>
                                 <TextBox Grid.Row="1" x:Name="ProjectSearchBox" Margin="0,0,0,10"
                                          ToolTip="جست‌وجوی پروژه یا پوشه" TextChanged="ProjectSearchBox_TextChanged"/>
                                 <TreeView Grid.Row="2" x:Name="ProjectTree" ItemsSource="{Binding ProjectRoots}"
@@ -226,9 +235,11 @@
                             </StackPanel>
                             <Button Grid.Column="1" Content="تغییر مسیر" Margin="12,22,0,0" Click="BrowseOutput_Click"/>
                             <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,14,0,0" FlowDirection="LeftToRight">
-                                <Button x:Name="GenerateButton" Content="تولید فایل" Padding="24,9" Click="Generate_Click"/>
+                                <Button x:Name="GenerateTextButton" Content="تولید TXT" Padding="22,9" Click="GenerateText_Click"/>
+                                <Button x:Name="GenerateZipButton" Content="تولید ZIP" Padding="22,9" Margin="8,0,0,0" Click="GenerateZip_Click"/>
                                 <Button x:Name="CancelButton" Content="لغو" Margin="8,0,0,0" IsEnabled="False" Click="Cancel_Click"/>
                                 <Button x:Name="OpenOutputButton" Content="باز کردن فایل" Margin="8,0,0,0" IsEnabled="False" Click="OpenOutput_Click"/>
+                                <Button x:Name="OpenZipButton" Content="باز کردن ZIP" Margin="8,0,0,0" IsEnabled="False" Click="OpenZip_Click"/>
                                 <Button x:Name="OpenFolderButton" Content="باز کردن پوشه" Margin="8,0,0,0" IsEnabled="False" Click="OpenFolder_Click"/>
                             </StackPanel>
                         </Grid>

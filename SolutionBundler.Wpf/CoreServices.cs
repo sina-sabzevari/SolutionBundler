@@ -60,9 +60,13 @@ internal static class CoreServices
         }
     }
 
-    public static IEnumerable<string> EnumerateFiles(IEnumerable<string> roots, CancellationToken token)
+    public static IEnumerable<string> EnumerateFiles(IEnumerable<string> roots, CancellationToken token,
+        IReadOnlyCollection<string>? excludedDirectories = null)
     {
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var excluded = excludedDirectories is null
+            ? null
+            : new HashSet<string>(excludedDirectories.Select(Path.GetFullPath), StringComparer.OrdinalIgnoreCase);
         foreach (var root in roots)
         {
             var pending = new Stack<string>();
@@ -71,6 +75,7 @@ internal static class CoreServices
             {
                 token.ThrowIfCancellationRequested();
                 var directory = pending.Pop();
+                if (excluded?.Contains(Path.GetFullPath(directory)) == true) continue;
                 string[] files;
                 string[] children;
                 try
@@ -92,17 +97,19 @@ internal static class CoreServices
         }
     }
 
-    public static Dictionary<string, int> ScanExtensions(IEnumerable<string> roots, CancellationToken token) =>
-        EnumerateFiles(roots, token)
+    public static Dictionary<string, int> ScanExtensions(IEnumerable<string> roots, CancellationToken token,
+        IReadOnlyCollection<string>? excludedDirectories = null) =>
+        EnumerateFiles(roots, token, excludedDirectories)
             .Select(Path.GetExtension).Where(x => !string.IsNullOrWhiteSpace(x))
             .Select(x => x!)
             .GroupBy(x => x, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(x => x.Key, x => x.Count(), StringComparer.OrdinalIgnoreCase);
 
-    public static List<string> FindFiles(IEnumerable<string> roots, HashSet<string> extensions, string output, CancellationToken token)
+    public static List<string> FindFiles(IEnumerable<string> roots, HashSet<string> extensions, string output,
+        CancellationToken token, IReadOnlyCollection<string>? excludedDirectories = null)
     {
         var outputFull = Path.GetFullPath(output);
-        return EnumerateFiles(roots, token)
+        return EnumerateFiles(roots, token, excludedDirectories)
             .Where(x => extensions.Contains(Path.GetExtension(x)))
             .Where(x => !string.Equals(Path.GetFullPath(x), outputFull, StringComparison.OrdinalIgnoreCase))
             .OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
@@ -190,15 +197,15 @@ internal static class CoreServices
         !value.Contains("http", StringComparison.OrdinalIgnoreCase) && value.Contains(':');
 }
 
-internal sealed record ModernSettings(string? LastRoot, List<string>? Favorites);
+internal sealed record ModernSettings(string? LastRoot, List<string>? Favorites, List<string>? HiddenPaths = null);
 
 internal static class SettingsStore
 {
     private static readonly string FilePath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SolutionBundler", "modern-settings.json");
     public static ModernSettings Load()
     {
-        try { return File.Exists(FilePath) ? JsonSerializer.Deserialize<ModernSettings>(File.ReadAllText(FilePath)) ?? new(null, []) : new(null, []); }
-        catch { return new(null, []); }
+        try { return File.Exists(FilePath) ? JsonSerializer.Deserialize<ModernSettings>(File.ReadAllText(FilePath)) ?? new(null, [], []) : new(null, [], []); }
+        catch { return new(null, [], []); }
     }
     public static void Save(ModernSettings settings)
     {

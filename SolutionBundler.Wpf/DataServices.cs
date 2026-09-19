@@ -22,41 +22,50 @@ internal static class SqlDataService
     public static async Task<(int tables, long rows)> WriteAsync(StreamWriter writer, string connectionString,
         IReadOnlyList<TableNode> tables, int limit, CancellationToken token)
     {
-        await writer.WriteLineAsync();
-        await writer.WriteLineAsync(new string('=', 120));
-        await writer.WriteLineAsync($"SQL SERVER DATA | ROW LIMIT PER TABLE: {limit}");
-        await writer.WriteLineAsync(new string('=', 120));
+        await writer.WriteLineAsync("-- Solution Bundler SQL Server export");
+        await writer.WriteLineAsync($"-- Row limit per table: {limit}");
+        await writer.WriteLineAsync("SET NOCOUNT ON;");
+        await writer.WriteLineAsync("GO");
         long rows = 0;
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync(token);
         foreach (var table in tables)
         {
             var qualified = $"[{table.Schema.Replace("]", "]]", StringComparison.Ordinal)}].[{table.Name.Replace("]", "]]", StringComparison.Ordinal)}]";
-            await writer.WriteLineAsync($"\nTABLE: {table.Schema}.{table.Name}");
+            await writer.WriteLineAsync();
+            await writer.WriteLineAsync($"-- Table: {qualified}");
             await using var command = new SqlCommand($"SELECT TOP (@limit) * FROM {qualified}", connection) { CommandTimeout = 60 };
             command.Parameters.Add("@limit", SqlDbType.Int).Value = limit;
             await using var reader = await command.ExecuteReaderAsync(CommandBehavior.SequentialAccess, token);
-            await writer.WriteLineAsync(string.Join('\t', Enumerable.Range(0, reader.FieldCount).Select(reader.GetName)));
+            var columns = string.Join(", ", Enumerable.Range(0, reader.FieldCount)
+                .Select(i => $"[{reader.GetName(i).Replace("]", "]]", StringComparison.Ordinal)}]"));
             while (await reader.ReadAsync(token))
             {
                 var values = new string[reader.FieldCount];
-                for (var i = 0; i < values.Length; i++) values[i] = Format(reader.GetValue(i));
-                await writer.WriteLineAsync(string.Join('\t', values));
+                for (var i = 0; i < values.Length; i++) values[i] = ToSqlLiteral(reader.GetValue(i));
+                await writer.WriteLineAsync($"INSERT INTO {qualified} ({columns}) VALUES ({string.Join(", ", values)});");
                 rows++;
             }
+            await writer.WriteLineAsync("GO");
         }
         return (tables.Count, rows);
     }
 
-    private static string Format(object value) => value switch
+    private static string ToSqlLiteral(object value) => value switch
     {
         DBNull => "NULL",
-        byte[] bytes => $"<binary:{bytes.Length} bytes>",
-        DateTime date => date.ToString("O"),
-        DateTimeOffset date => date.ToString("O"),
-        _ => Escape(Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty)
+        byte[] bytes => $"0x{Convert.ToHexString(bytes)}",
+        bool boolean => boolean ? "1" : "0",
+        DateTime date => $"'{date:O}'",
+        DateTimeOffset date => $"'{date:O}'",
+        TimeSpan time => $"'{time:c}'",
+        Guid guid => $"'{guid:D}'",
+        string text => $"N'{text.Replace("'", "''", StringComparison.Ordinal)}'",
+        char character => $"N'{character.ToString().Replace("'", "''", StringComparison.Ordinal)}'",
+        float or double or decimal or byte or sbyte or short or ushort or int or uint or long or ulong =>
+            Convert.ToString(value, CultureInfo.InvariantCulture) ?? "NULL",
+        _ => $"N'{(Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty).Replace("'", "''", StringComparison.Ordinal)}'"
     };
-    private static string Escape(string value) => value.Replace("\\", "\\\\").Replace("\r", "\\r").Replace("\n", "\\n").Replace("\t", "\\t");
 }
 
 internal static class RedisDataService

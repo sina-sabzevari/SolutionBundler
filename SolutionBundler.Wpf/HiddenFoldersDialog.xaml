@@ -1,0 +1,57 @@
+<Window x:Class="SolutionBundler.Wpf.HiddenFoldersDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:SolutionBundler.Wpf"
+        Title="پوشه‌های پنهان" Width="640" Height="520" MinWidth="480" MinHeight="360"
+        WindowStartupLocation="CenterOwner" FlowDirection="RightToLeft"
+        FontFamily="./Assets/#Vazirmatn">
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibility"/>
+        <HierarchicalDataTemplate DataType="{x:Type local:HiddenFolderNode}" ItemsSource="{Binding Children}">
+            <Grid FlowDirection="LeftToRight" MinHeight="26" Margin="2">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="22"/>
+                    <ColumnDefinition Width="22"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <CheckBox Grid.Column="0" IsChecked="{Binding IsChecked, Mode=TwoWay}"
+                          Visibility="{Binding IsHiddenEntry, Converter={StaticResource BoolToVisibility}}"
+                          VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="1" Text="{Binding Icon}" FontFamily="Segoe Fluent Icons"
+                           Foreground="{DynamicResource {x:Static SystemColors.AccentColorBrushKey}}"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <TextBlock Grid.Column="2" Text="{Binding Name}" Margin="5,0,0,0"
+                           VerticalAlignment="Center" ToolTip="{Binding Path}"/>
+            </Grid>
+        </HierarchicalDataTemplate>
+    </Window.Resources>
+
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <StackPanel Margin="0,0,0,14">
+            <TextBlock Text="پوشه‌های پنهان" FontSize="22" FontWeight="SemiBold"/>
+            <TextBlock Text="مواردی را که می‌خواهید دوباره در درخت نمایش داده شوند انتخاب کنید."
+                       Opacity="0.68" Margin="0,4,0,0"/>
+        </StackPanel>
+        <Border Grid.Row="1" BorderBrush="{DynamicResource SubtleBorderBrush}" BorderThickness="1"
+                CornerRadius="8" Padding="8">
+            <TreeView ItemsSource="{Binding Roots}" FlowDirection="LeftToRight" BorderThickness="0"
+                      ScrollViewer.VerticalScrollBarVisibility="Auto">
+                <TreeView.ItemContainerStyle>
+                    <Style TargetType="TreeViewItem">
+                        <Setter Property="IsExpanded" Value="True"/>
+                    </Style>
+                </TreeView.ItemContainerStyle>
+            </TreeView>
+        </Border>
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Left"
+                    FlowDirection="LeftToRight" Margin="0,16,0,0">
+            <Button Content="نمایش موارد انتخاب‌شده" Padding="18,8" IsDefault="True" Click="Confirm_Click"/>
+            <Button Content="انصراف" Padding="18,8" Margin="8,0,0,0" IsCancel="True"/>
+        </StackPanel>
+    </Grid>
+</Window>
