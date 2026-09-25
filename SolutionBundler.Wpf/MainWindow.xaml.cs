@@ -19,6 +19,7 @@ public partial class MainWindow : Window
     public ObservableCollection<ProjectNode> ProjectRoots { get; } = [];
     public ObservableCollection<ExtensionItem> Extensions { get; } = [];
     public ObservableCollection<SchemaNode> Schemas { get; } = [];
+    public ObservableCollection<SqlQuerySnapshot> SqlQueries { get; } = [];
 
     private ProjectNode? _fullRoot;
     private readonly HashSet<string> _selectedPaths = new(StringComparer.OrdinalIgnoreCase);
@@ -27,6 +28,7 @@ public partial class MainWindow : Window
     private readonly DispatcherTimer _searchTimer = new() { Interval = TimeSpan.FromMilliseconds(220) };
     private readonly DispatcherTimer _estimateTimer = new() { Interval = TimeSpan.FromMilliseconds(350) };
     private CancellationTokenSource? _operation;
+    private SqlQuerySnapshot? _pendingSqlQuery;
     private ModernSettings _settings;
 
     public MainWindow()
@@ -376,6 +378,78 @@ public partial class MainWindow : Window
     private void SelectAllTables_Click(object sender, RoutedEventArgs e) { foreach (var schema in Schemas) schema.IsChecked = true; }
     private void ClearTables_Click(object sender, RoutedEventArgs e) { foreach (var schema in Schemas) schema.IsChecked = false; }
 
+    private async void ExecuteSqlQuery_Click(object sender, RoutedEventArgs e)
+    {
+        if (_operation is not null) return;
+        var connectionString = SqlConnectionBox.Text.Trim();
+        var query = SqlQueryBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(connectionString)) { ShowError("Connection String را انتخاب کنید."); return; }
+        if (string.IsNullOrWhiteSpace(query)) { ShowError("Query را وارد کنید."); return; }
+        if (!int.TryParse(SqlQueryRowLimitBox.Text, out var limit) || limit is < 1 or > 100000)
+        { ShowError("تعداد رکورد Query باید عددی بین ۱ و ۱۰۰٬۰۰۰ باشد."); return; }
+
+        _pendingSqlQuery = null;
+        AddSqlQueryButton.IsEnabled = false;
+        ExecuteSqlQueryButton.IsEnabled = NewSqlQueryButton.IsEnabled = false;
+        SqlQueryBox.IsEnabled = SqlQueryRowLimitBox.IsEnabled = false;
+        await RunBusyAsync("در حال اجرای Query...", async token =>
+        {
+            var result = await SqlDataService.ExecuteQueryAsync(connectionString, query, limit, token);
+            _pendingSqlQuery = result;
+            SqlQueryResultGrid.ItemsSource = result.Result.DefaultView;
+            SqlQueryStatusText.Text = result.Result.Columns.Count == 0
+                ? "Query اجرا شد؛ Result Set ندارد."
+                : $"{result.RowCount:N0} رکورد نمایش داده شد" + (result.IsTruncated ? " (نتیجه محدود شده است)" : string.Empty);
+            AddSqlQueryButton.IsEnabled = true;
+            StatusText.Text = "Query با موفقیت اجرا شد.";
+        });
+        ExecuteSqlQueryButton.IsEnabled = NewSqlQueryButton.IsEnabled = true;
+        SqlQueryBox.IsEnabled = SqlQueryRowLimitBox.IsEnabled = true;
+    }
+
+    private void AddSqlQuery_Click(object sender, RoutedEventArgs e)
+    {
+        if (_pendingSqlQuery is null) return;
+        if (!int.TryParse(SqlQueryRowLimitBox.Text, out var limit) ||
+            !string.Equals(SqlQueryBox.Text.Trim(), _pendingSqlQuery.Query, StringComparison.Ordinal) ||
+            limit != _pendingSqlQuery.RowLimit)
+        {
+            ShowError("Query یا تعداد رکورد تغییر کرده است؛ ابتدا دوباره Query را اجرا کنید.");
+            return;
+        }
+
+        SqlQueries.Add(_pendingSqlQuery);
+        StatusText.Text = $"Query به خروجی اضافه شد — {SqlQueries.Count:N0} Query";
+        NewSqlQuery();
+    }
+
+    private void NewSqlQuery_Click(object sender, RoutedEventArgs e) => NewSqlQuery();
+
+    private void NewSqlQuery()
+    {
+        _pendingSqlQuery = null;
+        SqlQueryBox.Clear();
+        SqlQueryResultGrid.ItemsSource = null;
+        SqlQueryStatusText.Text = "هنوز اجرا نشده";
+        AddSqlQueryButton.IsEnabled = false;
+        SqlQueryBox.Focus();
+    }
+
+    private void SqlQueryBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (_pendingSqlQuery is null || AddSqlQueryButton is null) return;
+        AddSqlQueryButton.IsEnabled =
+            string.Equals(SqlQueryBox.Text.Trim(), _pendingSqlQuery.Query, StringComparison.Ordinal) &&
+            int.TryParse(SqlQueryRowLimitBox.Text, out var limit) && limit == _pendingSqlQuery.RowLimit;
+        if (!AddSqlQueryButton.IsEnabled) SqlQueryStatusText.Text = "Query تغییر کرده؛ برای به‌روزرسانی نتیجه دوباره اجرا کنید.";
+    }
+
+    private void RemoveSqlQuery_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: SqlQuerySnapshot snapshot }) SqlQueries.Remove(snapshot);
+        StatusText.Text = $"{SqlQueries.Count:N0} Query در خروجی باقی مانده است.";
+    }
+
     private async void DiscoverRedis_Click(object sender, RoutedEventArgs e)
     {
         var rootPath = RootPathBox.Text;
@@ -414,9 +488,14 @@ public partial class MainWindow : Window
         var solutionRoot = _fullRoot.Path;
         var selectedTables = Schemas.SelectMany(x => x.Tables).Where(x => x.IsChecked).ToList();
         var rowLimit = 100;
-        var includeSql = IncludeSqlCheck.IsChecked == true && selectedTables.Count > 0 &&
-                         int.TryParse(SqlRowLimitBox.Text, out rowLimit);
+        var wantsSqlTables = IncludeSqlCheck.IsChecked == true && selectedTables.Count > 0;
+        if (wantsSqlTables && (!int.TryParse(SqlRowLimitBox.Text, out rowLimit) || rowLimit is < 1 or > 100000))
+        { ShowError("تعداد رکورد جدول باید عددی بین ۱ و ۱۰۰٬۰۰۰ باشد."); return; }
+        var includeSqlTables = wantsSqlTables;
         var sqlConnection = SqlConnectionBox.Text.Trim();
+        if (includeSqlTables && string.IsNullOrWhiteSpace(sqlConnection))
+        { ShowError("Connection String مربوط به SQL Server را انتخاب کنید."); return; }
+        var sqlQueries = SqlQueries.ToList();
         var redisDb = 0;
         var redisKeyLimit = 100;
         var redisMemberLimit = 100;
@@ -438,11 +517,14 @@ public partial class MainWindow : Window
             var exports = new List<(string Path, string EntryName)>();
             try
             {
-                if (includeSql)
+                if (includeSqlTables || sqlQueries.Count > 0)
                 {
                     var sqlPath = Path.Combine(tempDirectory, "sql-export.sql");
                     await using var sqlWriter = new StreamWriter(sqlPath, false, new UTF8Encoding(true));
-                    await SqlDataService.WriteAsync(sqlWriter, sqlConnection, selectedTables, Math.Clamp(rowLimit, 1, 100000), token);
+                    if (includeSqlTables)
+                        await SqlDataService.WriteAsync(sqlWriter, sqlConnection, selectedTables, rowLimit, token);
+                    if (sqlQueries.Count > 0)
+                        await SqlDataService.WriteQuerySnapshotsAsync(sqlWriter, sqlQueries, token);
                     await sqlWriter.FlushAsync(token);
                     exports.Add((sqlPath, "database/sql-export.sql"));
                 }

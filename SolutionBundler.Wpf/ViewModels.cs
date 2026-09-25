@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Data;
 using System.Runtime.CompilerServices;
 
 namespace SolutionBundler.Wpf;
@@ -109,6 +110,16 @@ public sealed class SchemaNode : INotifyPropertyChanged
 }
 
 public sealed record ConnectionChoice(string DisplayName, string Value);
+
+public sealed class SqlQuerySnapshot
+{
+    public required string Query { get; init; }
+    public required int RowLimit { get; init; }
+    public required int RowCount { get; init; }
+    public required bool IsTruncated { get; init; }
+    public required DataTable Result { get; init; }
+    public string DisplayName => $"Query {RowCount:N0} ردیف" + (IsTruncated ? "+" : string.Empty);
+}
 
 public sealed class HiddenFolderNode
 {

@@ -7,6 +7,48 @@ namespace SolutionBundler.Wpf;
 
 internal static class SqlDataService
 {
+    public static async Task<SqlQuerySnapshot> ExecuteQueryAsync(string connectionString, string query, int limit,
+        CancellationToken token)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync(token);
+        await using var command = new SqlCommand(query, connection) { CommandTimeout = 120 };
+        await using var reader = await command.ExecuteReaderAsync(token);
+
+        while (reader.FieldCount == 0 && await reader.NextResultAsync(token)) { }
+
+        var table = new DataTable();
+        if (reader.FieldCount > 0)
+        {
+            var usedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            for (var i = 0; i < reader.FieldCount; i++)
+            {
+                var baseName = string.IsNullOrWhiteSpace(reader.GetName(i)) ? $"Column{i + 1}" : reader.GetName(i);
+                var name = baseName;
+                var suffix = 2;
+                while (!usedNames.Add(name)) name = $"{baseName}_{suffix++}";
+                table.Columns.Add(name, typeof(object));
+            }
+
+            while (table.Rows.Count < limit && await reader.ReadAsync(token))
+            {
+                var values = new object[reader.FieldCount];
+                reader.GetValues(values);
+                table.Rows.Add(values);
+            }
+        }
+
+        var truncated = reader.FieldCount > 0 && table.Rows.Count == limit && await reader.ReadAsync(token);
+        return new SqlQuerySnapshot
+        {
+            Query = query,
+            RowLimit = limit,
+            RowCount = table.Rows.Count,
+            IsTruncated = truncated,
+            Result = table
+        };
+    }
+
     public static async Task<List<(string Schema, string Name)>> LoadTablesAsync(string connectionString, CancellationToken token)
     {
         var result = new List<(string, string)>();
@@ -50,6 +92,52 @@ internal static class SqlDataService
         }
         return (tables.Count, rows);
     }
+
+    public static async Task WriteQuerySnapshotsAsync(StreamWriter writer,
+        IReadOnlyCollection<SqlQuerySnapshot> queries, CancellationToken token)
+    {
+        var index = 0;
+        foreach (var snapshot in queries)
+        {
+            token.ThrowIfCancellationRequested();
+            index++;
+            await writer.WriteLineAsync();
+            await writer.WriteLineAsync(new string('-', 100));
+            await writer.WriteLineAsync($"-- Query #{index} | Rows: {snapshot.RowCount} | Limit: {snapshot.RowLimit}" +
+                                        (snapshot.IsTruncated ? " | More rows available" : string.Empty));
+            await writer.WriteLineAsync("-- Query:");
+            foreach (var line in snapshot.Query.Trim().Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n'))
+                await writer.WriteLineAsync($"-- {line}");
+            await writer.WriteLineAsync("-- Result:");
+            if (snapshot.Result.Columns.Count == 0)
+            {
+                await writer.WriteLineAsync("-- (no result set)");
+                continue;
+            }
+
+            await writer.WriteLineAsync("-- " + string.Join('\t', snapshot.Result.Columns.Cast<DataColumn>().Select(x => EscapeCell(x.ColumnName))));
+            foreach (DataRow row in snapshot.Result.Rows)
+            {
+                token.ThrowIfCancellationRequested();
+                await writer.WriteLineAsync("-- " + string.Join('\t', row.ItemArray.Select(FormatResultValue)));
+            }
+        }
+    }
+
+    private static string FormatResultValue(object? value) => value switch
+    {
+        null or DBNull => "NULL",
+        byte[] bytes => $"0x{Convert.ToHexString(bytes)}",
+        DateTime date => date.ToString("O", CultureInfo.InvariantCulture),
+        DateTimeOffset date => date.ToString("O", CultureInfo.InvariantCulture),
+        _ => EscapeCell(Convert.ToString(value, CultureInfo.InvariantCulture) ?? string.Empty)
+    };
+
+    private static string EscapeCell(string value) =>
+        value.Replace("\\", "\\\\", StringComparison.Ordinal)
+            .Replace("\r", "\\r", StringComparison.Ordinal)
+            .Replace("\n", "\\n", StringComparison.Ordinal)
+            .Replace("\t", "\\t", StringComparison.Ordinal);
 
     private static string ToSqlLiteral(object value) => value switch
     {

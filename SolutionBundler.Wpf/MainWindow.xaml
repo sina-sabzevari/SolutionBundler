@@ -158,7 +158,8 @@
                                          ToolTip="جست‌وجوی پروژه یا پوشه" TextChanged="ProjectSearchBox_TextChanged"/>
                                 <TreeView Grid.Row="2" x:Name="ProjectTree" ItemsSource="{Binding ProjectRoots}"
                                           FlowDirection="LeftToRight" SelectedItemChanged="ProjectTree_SelectedItemChanged"
-                                          Height="430" MinHeight="300" BorderThickness="0" Background="Transparent"
+                                          MinHeight="300" VerticalAlignment="Stretch"
+                                          BorderThickness="0" Background="Transparent"
                                           ScrollViewer.VerticalScrollBarVisibility="Auto"
                                           ScrollViewer.HorizontalScrollBarVisibility="Auto"
                                           ScrollViewer.PanningMode="VerticalFirst"
@@ -198,7 +199,8 @@
                                             Margin="8,0,0,0" Click="SelectAllExtensions_Click"/>
                                 </Grid>
                                 <ListBox Grid.Row="2" x:Name="ExtensionList" ItemsSource="{Binding Extensions}"
-                                         Height="430" MinHeight="300" BorderThickness="0" Background="Transparent"
+                                         MinHeight="300" VerticalAlignment="Stretch"
+                                         BorderThickness="0" Background="Transparent"
                                          ScrollViewer.VerticalScrollBarVisibility="Auto"
                                          VirtualizingPanel.IsVirtualizing="True"
                                          VirtualizingPanel.VirtualizationMode="Recycling"
@@ -251,7 +253,7 @@
             <ScrollViewer x:Name="SqlPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
                 <StackPanel Margin="24" MaxWidth="1100">
                     <TextBlock Text="SQL Server" FontSize="26" FontWeight="SemiBold"/>
-                    <TextBlock Text="Connection String را پیدا کنید، Schema و جدول‌ها را انتخاب کنید." Style="{StaticResource MutedText}" Margin="0,0,0,18"/>
+                    <TextBlock Text="جدول‌ها را انتخاب کنید یا Query دلخواه اجرا کنید و نتیجه را به خروجی اضافه کنید." Style="{StaticResource MutedText}" Margin="0,0,0,18"/>
                     <Border Style="{StaticResource CardStyle}" Margin="0,0,0,14">
                         <StackPanel>
                             <TextBlock Text="Connection" Style="{StaticResource SectionTitle}"/>
@@ -263,8 +265,10 @@
                             </StackPanel>
                         </StackPanel>
                     </Border>
-                    <Border Style="{StaticResource CardStyle}">
-                        <Grid>
+                    <TabControl FlowDirection="RightToLeft" Margin="0,0,0,14">
+                        <TabItem Header="Table" IsSelected="True">
+                            <Border Style="{StaticResource CardStyle}" Margin="0,8,0,0">
+                                <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="360"/>
@@ -283,12 +287,65 @@
                                       VirtualizingPanel.VirtualizationMode="Recycling"
                                       PreviewMouseWheel="NestedScroll_PreviewMouseWheel"/>
                             <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,12,0,0">
-                                <TextBlock Text="تعداد رکورد اول هر جدول:" VerticalAlignment="Center"/>
-                                <TextBox x:Name="SqlRowLimitBox" Text="100" Width="100" Margin="8,0" FlowDirection="LeftToRight"/>
+                                <TextBlock Text="حداکثر رکورد از هر جدول:" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                <TextBox x:Name="SqlRowLimitBox" Text="100" Width="100" Margin="8,0" FlowDirection="LeftToRight"
+                                         ToolTip="عددی بین ۱ تا ۱۰۰٬۰۰۰"/>
                                 <CheckBox x:Name="IncludeSqlCheck" Content="افزودن به خروجی" IsChecked="True" VerticalAlignment="Center"/>
                             </StackPanel>
-                        </Grid>
-                    </Border>
+                                </Grid>
+                            </Border>
+                        </TabItem>
+                        <TabItem Header="Query">
+                            <Border Style="{StaticResource CardStyle}" Margin="0,8,0,0">
+                                <StackPanel>
+                            <TextBlock Text="Query SQL Server" Style="{StaticResource SectionTitle}"/>
+                            <TextBlock Text="Query را اجرا و نتیجه را بررسی کنید؛ سپس Snapshot کوئری و نتیجه را به خروجی اضافه کنید."
+                                       Style="{StaticResource MutedText}" Margin="0,0,0,10"/>
+                            <TextBox x:Name="SqlQueryBox" Height="120" AcceptsReturn="True" AcceptsTab="True"
+                                     VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                                     TextWrapping="NoWrap" FlowDirection="LeftToRight" FontFamily="Consolas"
+                                     TextChanged="SqlQueryBox_TextChanged"/>
+                            <DockPanel Margin="0,10,0,10">
+                                <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                                    <TextBlock Text="حداکثر رکورد:" VerticalAlignment="Center"/>
+                                    <TextBox x:Name="SqlQueryRowLimitBox" Text="100" Width="90" Margin="8,0"
+                                             FlowDirection="LeftToRight" ToolTip="عددی بین ۱ تا ۱۰۰٬۰۰۰"
+                                             TextChanged="SqlQueryBox_TextChanged"/>
+                                    <Button x:Name="ExecuteSqlQueryButton" Content="اجرای Query" Click="ExecuteSqlQuery_Click"/>
+                                    <Button x:Name="AddSqlQueryButton" Content="افزودن Query و نتیجه" Margin="8,0,0,0"
+                                            IsEnabled="False" Click="AddSqlQuery_Click"/>
+                                    <Button x:Name="NewSqlQueryButton" Content="Query جدید" Margin="8,0,0,0" Click="NewSqlQuery_Click"/>
+                                </StackPanel>
+                                <TextBlock x:Name="SqlQueryStatusText" Text="هنوز اجرا نشده" VerticalAlignment="Center"
+                                           Style="{StaticResource MutedText}"/>
+                            </DockPanel>
+                            <DataGrid x:Name="SqlQueryResultGrid" Height="250" IsReadOnly="True" AutoGenerateColumns="True"
+                                      CanUserAddRows="False" CanUserDeleteRows="False" FlowDirection="LeftToRight"
+                                      EnableRowVirtualization="True" EnableColumnVirtualization="True"/>
+                            <TextBlock Text="Queryهای افزوده‌شده به خروجی" FontWeight="SemiBold" Margin="0,14,0,8"/>
+                            <ListBox ItemsSource="{Binding SqlQueries}" MaxHeight="170" FlowDirection="RightToLeft">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="2">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold"/>
+                                                <TextBlock Text="{Binding Query}" TextTrimming="CharacterEllipsis" Opacity="0.68"
+                                                           FlowDirection="LeftToRight" MaxWidth="780"/>
+                                            </StackPanel>
+                                            <Button Grid.Column="1" Content="حذف" Margin="10,0,0,0" Tag="{Binding}"
+                                                    Click="RemoveSqlQuery_Click"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                                </StackPanel>
+                            </Border>
+                        </TabItem>
+                    </TabControl>
                 </StackPanel>
             </ScrollViewer>
 
