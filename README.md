@@ -4,7 +4,7 @@
 
 ## دانلود و اجرا
 
-[دانلود فایل اجرایی SolutionBundler.Modern v10](releases/SolutionBundler.Modern-v10-win-x64.exe)
+[دانلود آخرین فایل اجرایی SolutionBundler.Modern v10](https://github.com/sina-sabzevari/SolutionBundler/releases/latest/download/SolutionBundler.Modern-v10-win-x64.exe)
 
 > **پیش‌نیاز اجرا:** این نسخه به **.NET 10 Desktop Runtime** روی Windows x64 نیاز دارد.
 

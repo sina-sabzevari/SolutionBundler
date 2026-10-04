@@ -179,11 +179,18 @@
                                 <Grid Margin="0,0,0,12" FlowDirection="LeftToRight">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
                                     <Button Grid.Column="0" Content="اسکن پسوندها" MinWidth="112" Padding="14,7"
                                             VerticalAlignment="Top" Click="ScanExtensions_Click"/>
-                                    <TextBlock Grid.Column="1" Text="پسوندها" Style="{StaticResource SectionTitle}"
+                                    <ComboBox Grid.Column="1" x:Name="ExtensionSortCombo" MinWidth="138" SelectedIndex="0"
+                                              Margin="8,0,0,0" ToolTip="مرتب‌سازی پسوندها"
+                                              SelectionChanged="ExtensionSortCombo_SelectionChanged">
+                                        <ComboBoxItem Content="مرتب‌سازی: نام" Tag="Name"/>
+                                        <ComboBoxItem Content="مرتب‌سازی: تعداد" Tag="Count"/>
+                                    </ComboBox>
+                                    <TextBlock Grid.Column="2" Text="پسوندها" Style="{StaticResource SectionTitle}"
                                                FlowDirection="RightToLeft" HorizontalAlignment="Right"
                                                VerticalAlignment="Center" Margin="12,0,0,0"/>
                                 </Grid>
@@ -271,22 +278,23 @@
                                 <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
-                                <RowDefinition Height="360"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="300"/>
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
                             <DockPanel Margin="0,0,0,10">
                                 <TextBlock Text="Schema و Table" Style="{StaticResource SectionTitle}"/>
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
-                                    <Button Content="انتخاب همه" Click="SelectAllTables_Click"/>
-                                    <Button Content="لغو همه" Margin="7,0,0,0" Click="ClearTables_Click"/>
-                                </StackPanel>
                             </DockPanel>
-                            <TreeView Grid.Row="1" ItemsSource="{Binding Schemas}" FlowDirection="LeftToRight" BorderThickness="0"
+                            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
+                                <Button Content="انتخاب همه" Click="SelectAllTables_Click"/>
+                                <Button Content="لغو همه" Margin="7,0,0,0" Click="ClearTables_Click"/>
+                            </StackPanel>
+                            <TreeView Grid.Row="2" ItemsSource="{Binding Schemas}" FlowDirection="LeftToRight" BorderThickness="0"
                                       ScrollViewer.VerticalScrollBarVisibility="Auto"
                                       VirtualizingPanel.IsVirtualizing="True"
                                       VirtualizingPanel.VirtualizationMode="Recycling"
                                       PreviewMouseWheel="NestedScroll_PreviewMouseWheel"/>
-                            <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,12,0,0">
+                            <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,12,0,0">
                                 <TextBlock Text="حداکثر رکورد از هر جدول:" FontWeight="SemiBold" VerticalAlignment="Center"/>
                                 <TextBox x:Name="SqlRowLimitBox" Text="100" Width="100" Margin="8,0" FlowDirection="LeftToRight"
                                          ToolTip="عددی بین ۱ تا ۱۰۰٬۰۰۰"/>

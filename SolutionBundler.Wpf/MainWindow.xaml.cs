@@ -301,16 +301,33 @@ public partial class MainWindow : Window
         await RunBusyAsync("در حال اسکن پسوندها...", async token =>
         {
             var counts = await Task.Run(() => CoreServices.ScanExtensions(roots, token, hiddenPaths), token);
-            Extensions.Clear();
-            foreach (var pair in counts.OrderBy(x => x.Key, StringComparer.OrdinalIgnoreCase))
+            var items = counts.Select(pair =>
             {
                 var item = new ExtensionItem { Name = pair.Key, Count = pair.Value, IsChecked = DefaultExtensions.Contains(pair.Key) };
                 item.CheckedChanged += (_, _) => { UpdateSelectionSummary(); _estimateTimer.Stop(); _estimateTimer.Start(); };
-                Extensions.Add(item);
-            }
+                return item;
+            });
+            ReplaceExtensions(items);
             StatusText.Text = $"{counts.Count:N0} پسوند پیدا شد."; UpdateSelectionSummary();
         });
         _estimateTimer.Start();
+    }
+
+    private void ExtensionSortCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (Extensions.Count > 1) ReplaceExtensions(Extensions.ToList());
+    }
+
+    private void ReplaceExtensions(IEnumerable<ExtensionItem> items)
+    {
+        var sortByCount = ExtensionSortCombo?.SelectedItem is ComboBoxItem { Tag: "Count" };
+        var sorted = sortByCount
+            ? items.OrderByDescending(item => item.Count).ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
+            : items.OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase);
+
+        var snapshot = sorted.ToList();
+        Extensions.Clear();
+        foreach (var item in snapshot) Extensions.Add(item);
     }
 
     private void SelectAllExtensions_Click(object sender, RoutedEventArgs e) { foreach (var item in Extensions) item.IsChecked = true; }
