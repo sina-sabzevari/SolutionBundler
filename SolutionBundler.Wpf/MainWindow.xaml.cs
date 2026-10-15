@@ -293,24 +293,38 @@ public partial class MainWindow : Window
         SettingsStore.Save(_settings);
     }
 
-    private async void ScanExtensions_Click(object sender, RoutedEventArgs e)
+    private async void ScanExtensions_Click(object sender, RoutedEventArgs e) =>
+        await ScanExtensionsAsync(preserveSelections: false);
+
+    private async void RefreshStatistics_Click(object sender, RoutedEventArgs e) =>
+        await ScanExtensionsAsync(preserveSelections: true);
+
+    private async Task ScanExtensionsAsync(bool preserveSelections)
     {
         var roots = SelectedRoots();
         var hiddenPaths = _hiddenPaths.ToArray();
         if (roots.Count == 0) { ShowError("حداقل یک پروژه یا پوشه را انتخاب کنید."); return; }
-        await RunBusyAsync("در حال اسکن پسوندها...", async token =>
+        var selectedExtensions = preserveSelections && Extensions.Count > 0
+            ? Extensions.Where(item => item.IsChecked).Select(item => item.Name)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase)
+            : DefaultExtensions;
+        var busyMessage = preserveSelections ? "در حال تازه‌سازی آمار فایل‌ها..." : "در حال اسکن پسوندها...";
+        await RunBusyAsync(busyMessage, async token =>
         {
             var counts = await Task.Run(() => CoreServices.ScanExtensions(roots, token, hiddenPaths), token);
             var items = counts.Select(pair =>
             {
-                var item = new ExtensionItem { Name = pair.Key, Count = pair.Value, IsChecked = DefaultExtensions.Contains(pair.Key) };
+                var item = new ExtensionItem { Name = pair.Key, Count = pair.Value, IsChecked = selectedExtensions.Contains(pair.Key) };
                 item.CheckedChanged += (_, _) => { UpdateSelectionSummary(); _estimateTimer.Stop(); _estimateTimer.Start(); };
                 return item;
             });
             ReplaceExtensions(items);
-            StatusText.Text = $"{counts.Count:N0} پسوند پیدا شد."; UpdateSelectionSummary();
+            StatusText.Text = preserveSelections
+                ? $"آمار {counts.Count:N0} پسوند تازه‌سازی شد."
+                : $"{counts.Count:N0} پسوند پیدا شد.";
+            UpdateSelectionSummary();
         });
-        _estimateTimer.Start();
+        await EstimateAsync();
     }
 
     private void ExtensionSortCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
