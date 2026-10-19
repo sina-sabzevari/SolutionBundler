@@ -39,17 +39,25 @@
                            Margin="5,0,0,0" ToolTip="{Binding Path}"/>
             </Grid>
         </HierarchicalDataTemplate>
-        <HierarchicalDataTemplate DataType="{x:Type local:SchemaNode}" ItemsSource="{Binding Tables}">
+        <HierarchicalDataTemplate DataType="{x:Type local:SchemaNode}" ItemsSource="{Binding Groups}">
             <StackPanel Orientation="Horizontal" FlowDirection="LeftToRight" Margin="2">
                 <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay}" Margin="0,0,7,0"/>
                 <TextBlock Text="▦" Foreground="{DynamicResource {x:Static SystemColors.AccentColorBrushKey}}" Margin="0,0,6,0"/>
                 <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
             </StackPanel>
         </HierarchicalDataTemplate>
-        <DataTemplate DataType="{x:Type local:TableNode}">
+        <HierarchicalDataTemplate DataType="{x:Type local:SqlObjectGroupNode}" ItemsSource="{Binding Objects}">
             <StackPanel Orientation="Horizontal" FlowDirection="LeftToRight" Margin="2">
                 <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay}" Margin="0,0,7,0"/>
-                <TextBlock Text="▤" Opacity="0.72" Margin="0,0,6,0"/>
+                <TextBlock Text="{Binding Icon}" Foreground="{DynamicResource {x:Static SystemColors.AccentColorBrushKey}}"
+                           Margin="0,0,6,0" MinWidth="14"/>
+                <TextBlock Text="{Binding Name}" FontWeight="SemiBold"/>
+            </StackPanel>
+        </HierarchicalDataTemplate>
+        <DataTemplate DataType="{x:Type local:SqlObjectNode}">
+            <StackPanel Orientation="Horizontal" FlowDirection="LeftToRight" Margin="2">
+                <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay}" Margin="0,0,7,0"/>
+                <TextBlock Text="{Binding Icon}" Opacity="0.72" Margin="0,0,6,0" MinWidth="14"/>
                 <TextBlock Text="{Binding Name}"/>
             </StackPanel>
         </DataTemplate>
@@ -264,7 +272,7 @@
             <ScrollViewer x:Name="SqlPage" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
                 <StackPanel Margin="24" MaxWidth="1100">
                     <TextBlock Text="SQL Server" FontSize="26" FontWeight="SemiBold"/>
-                    <TextBlock Text="جدول‌ها را انتخاب کنید یا Query دلخواه اجرا کنید و نتیجه را به خروجی اضافه کنید." Style="{StaticResource MutedText}" Margin="0,0,0,18"/>
+                    <TextBlock Text="Database را انتخاب کنید؛ سپس Table، View، Function و Stored Procedureها را به خروجی اضافه کنید." Style="{StaticResource MutedText}" Margin="0,0,0,18"/>
                     <Border Style="{StaticResource CardStyle}" Margin="0,0,0,14">
                         <StackPanel>
                             <TextBlock Text="Connection" Style="{StaticResource SectionTitle}"/>
@@ -272,12 +280,29 @@
                             <TextBox x:Name="SqlConnectionBox" Margin="0,8,0,0" FlowDirection="LeftToRight"/>
                             <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
                                 <Button Content="یافتن Connectionها" Click="DiscoverSql_Click"/>
-                                <Button Content="اتصال و دریافت جداول" Margin="8,0,0,0" Click="LoadSqlTables_Click"/>
+                                <Button Content="اتصال و دریافت Databaseها" Margin="8,0,0,0" Click="LoadSqlDatabases_Click"/>
                             </StackPanel>
+                            <Grid Margin="0,12,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel>
+                                    <TextBlock Text="Database" FontWeight="SemiBold"/>
+                                    <ComboBox x:Name="SqlDatabaseCombo" Margin="0,7,0,0" FlowDirection="LeftToRight"
+                                              SelectionChanged="SqlDatabaseCombo_SelectionChanged"/>
+                                </StackPanel>
+                                <Button Grid.Column="1" Content="دریافت Objectها" Margin="10,22,0,0"
+                                        Padding="18,8" Click="LoadSqlObjects_Click"/>
+                                <Button Grid.Column="2" Content="تازه‌سازی Objectها" Margin="8,22,0,0"
+                                        Padding="18,8" ToolTip="خواندن مجدد Objectهای Database و حفظ انتخاب‌ها"
+                                        Click="RefreshSqlObjects_Click"/>
+                            </Grid>
                         </StackPanel>
                     </Border>
                     <TabControl FlowDirection="RightToLeft" Margin="0,0,0,14">
-                        <TabItem Header="Table" IsSelected="True">
+                        <TabItem Header="Database Objects" IsSelected="True">
                             <Border Style="{StaticResource CardStyle}" Margin="0,8,0,0">
                                 <Grid>
                             <Grid.RowDefinitions>
@@ -287,7 +312,7 @@
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
                             <DockPanel Margin="0,0,0,10">
-                                <TextBlock Text="Schema و Table" Style="{StaticResource SectionTitle}"/>
+                                <TextBlock Text="Schema و Database Object" Style="{StaticResource SectionTitle}"/>
                             </DockPanel>
                             <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,10">
                                 <Button Content="انتخاب همه" Click="SelectAllTables_Click"/>
@@ -299,10 +324,10 @@
                                       VirtualizingPanel.VirtualizationMode="Recycling"
                                       PreviewMouseWheel="NestedScroll_PreviewMouseWheel"/>
                             <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,12,0,0">
-                                <TextBlock Text="حداکثر رکورد از هر جدول:" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                <TextBlock Text="حداکثر رکورد از هر Table:" FontWeight="SemiBold" VerticalAlignment="Center"/>
                                 <TextBox x:Name="SqlRowLimitBox" Text="100" Width="100" Margin="8,0" FlowDirection="LeftToRight"
                                          ToolTip="عددی بین ۱ تا ۱۰۰٬۰۰۰"/>
-                                <CheckBox x:Name="IncludeSqlCheck" Content="افزودن به خروجی" IsChecked="True" VerticalAlignment="Center"/>
+                                <CheckBox x:Name="IncludeSqlCheck" Content="افزودن Objectهای انتخاب‌شده به خروجی" IsChecked="True" VerticalAlignment="Center"/>
                             </StackPanel>
                                 </Grid>
                             </Border>

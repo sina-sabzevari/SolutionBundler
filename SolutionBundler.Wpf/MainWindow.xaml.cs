@@ -382,28 +382,98 @@ public partial class MainWindow : Window
     }
 
     private void SqlConnectionCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    { if (SqlConnectionCombo.SelectedItem is ConnectionChoice item) SqlConnectionBox.Text = item.Value; }
+    {
+        if (SqlConnectionCombo.SelectedItem is ConnectionChoice item) SqlConnectionBox.Text = item.Value;
+        if (SqlDatabaseCombo is not null) SqlDatabaseCombo.ItemsSource = null;
+        Schemas.Clear();
+    }
 
-    private async void LoadSqlTables_Click(object sender, RoutedEventArgs e)
+    private async void LoadSqlDatabases_Click(object sender, RoutedEventArgs e)
     {
         if (string.IsNullOrWhiteSpace(SqlConnectionBox.Text)) { ShowError("Connection String را انتخاب کنید."); return; }
-        await RunBusyAsync("در حال اتصال و دریافت جداول...", async token =>
+        var connectionString = SqlConnectionBox.Text.Trim();
+        await RunBusyAsync("در حال اتصال و دریافت Databaseها...", async token =>
         {
-            var tables = await SqlDataService.LoadTablesAsync(SqlConnectionBox.Text.Trim(), token);
+            var databases = await SqlDataService.LoadDatabasesAsync(connectionString, token);
+            SqlDatabaseCombo.ItemsSource = databases;
+            var configuredDatabase = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(connectionString).InitialCatalog;
+            var selectedDatabase = databases.FirstOrDefault(database =>
+                database.Equals(configuredDatabase, StringComparison.OrdinalIgnoreCase));
+            if (selectedDatabase is not null) SqlDatabaseCombo.SelectedItem = selectedDatabase;
+            else if (databases.Count > 0) SqlDatabaseCombo.SelectedIndex = 0;
             Schemas.Clear();
-            foreach (var group in tables.GroupBy(x => x.Schema))
+            StatusText.Text = $"{databases.Count:N0} Database قابل دسترسی پیدا شد.";
+        });
+    }
+
+    private void SqlDatabaseCombo_SelectionChanged(object sender, SelectionChangedEventArgs e) => Schemas.Clear();
+
+    private async void LoadSqlObjects_Click(object sender, RoutedEventArgs e) =>
+        await LoadSqlObjectsAsync(preserveSelections: false);
+
+    private async void RefreshSqlObjects_Click(object sender, RoutedEventArgs e) =>
+        await LoadSqlObjectsAsync(preserveSelections: true);
+
+    private async Task LoadSqlObjectsAsync(bool preserveSelections)
+    {
+        if (SqlDatabaseCombo.SelectedItem is not string database)
+        { ShowError("ابتدا Database را انتخاب کنید."); return; }
+        var selectedObjectKeys = preserveSelections
+            ? Schemas.SelectMany(schema => schema.Groups).SelectMany(group => group.Objects)
+                .Where(item => item.IsChecked).Select(SqlObjectKey)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase)
+            : [];
+        var connectionString = GetSqlConnectionString();
+        var busyMessage = preserveSelections
+            ? $"در حال تازه‌سازی Objectهای Database {database}..."
+            : $"در حال دریافت Objectهای Database {database}...";
+        await RunBusyAsync(busyMessage, async token =>
+        {
+            var objects = await SqlDataService.LoadObjectsAsync(connectionString, token);
+            Schemas.Clear();
+            foreach (var group in objects.GroupBy(item => item.Schema))
             {
                 var schema = new SchemaNode { Name = group.Key };
-                foreach (var table in group)
+                foreach (var kindGroup in group.GroupBy(item => item.Kind).OrderBy(items => items.Key))
                 {
-                    var item = new TableNode { Schema = table.Schema, Name = table.Name };
-                    item.CheckedChanged += (_, _) => schema.RefreshFromChildren();
-                    schema.Tables.Add(item);
+                    var objectGroup = new SqlObjectGroupNode { Kind = kindGroup.Key };
+                    foreach (var databaseObject in kindGroup.OrderBy(item => item.Name))
+                    {
+                        var item = new SqlObjectNode
+                        {
+                            Schema = databaseObject.Schema,
+                            Name = databaseObject.Name,
+                            Kind = databaseObject.Kind,
+                            IsChecked = selectedObjectKeys.Contains(SqlObjectKey(databaseObject))
+                        };
+                        item.CheckedChanged += (_, _) => objectGroup.RefreshFromChildren();
+                        objectGroup.Objects.Add(item);
+                    }
+                    objectGroup.RefreshFromChildren();
+                    objectGroup.CheckedChanged += (_, _) => schema.RefreshFromChildren();
+                    schema.Groups.Add(objectGroup);
                 }
+                schema.RefreshFromChildren();
                 Schemas.Add(schema);
             }
-            StatusText.Text = $"{tables.Count:N0} جدول در {Schemas.Count:N0} Schema پیدا شد.";
+            var tables = objects.Count(item => item.Kind == SqlObjectKind.Table);
+            var views = objects.Count(item => item.Kind == SqlObjectKind.View);
+            var functions = objects.Count(item => item.Kind == SqlObjectKind.Function);
+            var procedures = objects.Count(item => item.Kind == SqlObjectKind.StoredProcedure);
+            StatusText.Text = $"{tables:N0} Table، {views:N0} View، {functions:N0} Function و {procedures:N0} SP در {Schemas.Count:N0} Schema " +
+                              (preserveSelections ? "تازه‌سازی شد." : "پیدا شد.");
         });
+    }
+
+    private static string SqlObjectKey(SqlObjectInfo item) => $"{(int)item.Kind}\u001F{item.Schema}\u001F{item.Name}";
+    private static string SqlObjectKey(SqlObjectNode item) => $"{(int)item.Kind}\u001F{item.Schema}\u001F{item.Name}";
+
+    private string GetSqlConnectionString()
+    {
+        var connectionString = SqlConnectionBox.Text.Trim();
+        return SqlDatabaseCombo.SelectedItem is string database && !string.IsNullOrWhiteSpace(database)
+            ? SqlDataService.UseDatabase(connectionString, database)
+            : connectionString;
     }
 
     private void SelectAllTables_Click(object sender, RoutedEventArgs e) { foreach (var schema in Schemas) schema.IsChecked = true; }
@@ -412,7 +482,7 @@ public partial class MainWindow : Window
     private async void ExecuteSqlQuery_Click(object sender, RoutedEventArgs e)
     {
         if (_operation is not null) return;
-        var connectionString = SqlConnectionBox.Text.Trim();
+        var connectionString = GetSqlConnectionString();
         var query = SqlQueryBox.Text.Trim();
         if (string.IsNullOrWhiteSpace(connectionString)) { ShowError("Connection String را انتخاب کنید."); return; }
         if (string.IsNullOrWhiteSpace(query)) { ShowError("Query را وارد کنید."); return; }
@@ -517,14 +587,17 @@ public partial class MainWindow : Window
         if (roots.Count == 0 || ext.Count == 0) { ShowError("پروژه‌ها و پسوندها را انتخاب کنید."); return; }
         var output = OutputPathBox.Text.Trim();
         var solutionRoot = _fullRoot.Path;
-        var selectedTables = Schemas.SelectMany(x => x.Tables).Where(x => x.IsChecked).ToList();
+        var selectedSqlObjects = Schemas.SelectMany(schema => schema.Groups)
+            .SelectMany(group => group.Objects).Where(item => item.IsChecked).ToList();
         var rowLimit = 100;
-        var wantsSqlTables = IncludeSqlCheck.IsChecked == true && selectedTables.Count > 0;
-        if (wantsSqlTables && (!int.TryParse(SqlRowLimitBox.Text, out rowLimit) || rowLimit is < 1 or > 100000))
+        var wantsSqlObjects = IncludeSqlCheck.IsChecked == true && selectedSqlObjects.Count > 0;
+        var hasSelectedTables = selectedSqlObjects.Any(item => item.Kind == SqlObjectKind.Table);
+        if (wantsSqlObjects && hasSelectedTables &&
+            (!int.TryParse(SqlRowLimitBox.Text, out rowLimit) || rowLimit is < 1 or > 100000))
         { ShowError("تعداد رکورد جدول باید عددی بین ۱ و ۱۰۰٬۰۰۰ باشد."); return; }
-        var includeSqlTables = wantsSqlTables;
-        var sqlConnection = SqlConnectionBox.Text.Trim();
-        if (includeSqlTables && string.IsNullOrWhiteSpace(sqlConnection))
+        var includeSqlObjects = wantsSqlObjects;
+        var sqlConnection = GetSqlConnectionString();
+        if (includeSqlObjects && string.IsNullOrWhiteSpace(sqlConnection))
         { ShowError("Connection String مربوط به SQL Server را انتخاب کنید."); return; }
         var sqlQueries = SqlQueries.ToList();
         var redisDb = 0;
@@ -548,12 +621,12 @@ public partial class MainWindow : Window
             var exports = new List<(string Path, string EntryName)>();
             try
             {
-                if (includeSqlTables || sqlQueries.Count > 0)
+                if (includeSqlObjects || sqlQueries.Count > 0)
                 {
                     var sqlPath = Path.Combine(tempDirectory, "sql-export.sql");
                     await using var sqlWriter = new StreamWriter(sqlPath, false, new UTF8Encoding(true));
-                    if (includeSqlTables)
-                        await SqlDataService.WriteAsync(sqlWriter, sqlConnection, selectedTables, rowLimit, token);
+                    if (includeSqlObjects)
+                        await SqlDataService.WriteAsync(sqlWriter, sqlConnection, selectedSqlObjects, rowLimit, token);
                     if (sqlQueries.Count > 0)
                         await SqlDataService.WriteQuerySnapshotsAsync(sqlWriter, sqlQueries, token);
                     await sqlWriter.FlushAsync(token);

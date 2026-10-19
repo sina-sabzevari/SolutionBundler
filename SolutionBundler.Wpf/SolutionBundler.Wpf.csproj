@@ -8,10 +8,10 @@
     <NoWarn>$(NoWarn);WPF0001</NoWarn>
     <AssemblyName>SolutionBundler.Modern</AssemblyName>
     <ApplicationIcon>Assets\AppIcon.ico</ApplicationIcon>
-    <Version>10.0.2</Version>
-    <AssemblyVersion>10.0.2.0</AssemblyVersion>
-    <FileVersion>10.0.2.0</FileVersion>
-    <InformationalVersion>10.0.2</InformationalVersion>
+    <Version>10.0.3</Version>
+    <AssemblyVersion>10.0.3.0</AssemblyVersion>
+    <FileVersion>10.0.3.0</FileVersion>
+    <InformationalVersion>10.0.3</InformationalVersion>
     <Authors>Sina Sabzevari</Authors>
     <Company>Sina Sabzevari</Company>
     <Product>Solution Bundler</Product>

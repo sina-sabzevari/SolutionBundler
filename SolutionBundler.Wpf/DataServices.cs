@@ -41,6 +41,7 @@ internal static class SqlDataService
         var truncated = reader.FieldCount > 0 && table.Rows.Count == limit && await reader.ReadAsync(token);
         return new SqlQuerySnapshot
         {
+            Database = connection.Database,
             Query = query,
             RowLimit = limit,
             RowCount = table.Rows.Count,
@@ -49,20 +50,55 @@ internal static class SqlDataService
         };
     }
 
-    public static async Task<List<(string Schema, string Name)>> LoadTablesAsync(string connectionString, CancellationToken token)
+    public static string UseDatabase(string connectionString, string database)
     {
-        var result = new List<(string, string)>();
+        var builder = new SqlConnectionStringBuilder(connectionString) { InitialCatalog = database };
+        return builder.ConnectionString;
+    }
+
+    public static async Task<List<string>> LoadDatabasesAsync(string connectionString, CancellationToken token)
+    {
+        var result = new List<string>();
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync(token);
-        const string sql = "SELECT s.name,t.name FROM sys.tables t JOIN sys.schemas s ON s.schema_id=t.schema_id WHERE t.is_ms_shipped=0 ORDER BY s.name,t.name";
+        const string sql = "SELECT name FROM sys.databases WHERE state = 0 AND database_id > 4 AND HAS_DBACCESS(name) = 1 ORDER BY name";
         await using var command = new SqlCommand(sql, connection) { CommandTimeout = 30 };
         await using var reader = await command.ExecuteReaderAsync(token);
-        while (await reader.ReadAsync(token)) result.Add((reader.GetString(0), reader.GetString(1)));
+        while (await reader.ReadAsync(token)) result.Add(reader.GetString(0));
+        return result;
+    }
+
+    public static async Task<List<SqlObjectInfo>> LoadObjectsAsync(string connectionString, CancellationToken token)
+    {
+        var result = new List<SqlObjectInfo>();
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync(token);
+        const string sql = """
+            SELECT s.name, o.name, o.type
+            FROM sys.objects o
+            JOIN sys.schemas s ON s.schema_id = o.schema_id
+            WHERE o.is_ms_shipped = 0
+              AND o.type IN ('U', 'V', 'P', 'PC', 'FN', 'IF', 'TF', 'FS', 'FT')
+            ORDER BY s.name, o.type, o.name
+            """;
+        await using var command = new SqlCommand(sql, connection) { CommandTimeout = 30 };
+        await using var reader = await command.ExecuteReaderAsync(token);
+        while (await reader.ReadAsync(token))
+        {
+            var kind = reader.GetString(2).Trim() switch
+            {
+                "U" => SqlObjectKind.Table,
+                "V" => SqlObjectKind.View,
+                "P" or "PC" => SqlObjectKind.StoredProcedure,
+                _ => SqlObjectKind.Function
+            };
+            result.Add(new SqlObjectInfo(reader.GetString(0), reader.GetString(1), kind));
+        }
         return result;
     }
 
     public static async Task<(int tables, long rows)> WriteAsync(StreamWriter writer, string connectionString,
-        IReadOnlyList<TableNode> tables, int limit, CancellationToken token)
+        IReadOnlyList<SqlObjectNode> objects, int limit, CancellationToken token)
     {
         await writer.WriteLineAsync("-- Solution Bundler SQL Server export");
         await writer.WriteLineAsync($"-- Row limit per table: {limit}");
@@ -71,11 +107,31 @@ internal static class SqlDataService
         long rows = 0;
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync(token);
-        foreach (var table in tables)
+        await writer.WriteLineAsync($"-- Database: [{connection.Database.Replace("]", "]]", StringComparison.Ordinal)}]");
+        foreach (var item in objects)
         {
-            var qualified = $"[{table.Schema.Replace("]", "]]", StringComparison.Ordinal)}].[{table.Name.Replace("]", "]]", StringComparison.Ordinal)}]";
+            token.ThrowIfCancellationRequested();
+            var qualified = $"[{item.Schema.Replace("]", "]]", StringComparison.Ordinal)}].[{item.Name.Replace("]", "]]", StringComparison.Ordinal)}]";
             await writer.WriteLineAsync();
-            await writer.WriteLineAsync($"-- Table: {qualified}");
+            if (item.Kind != SqlObjectKind.Table)
+            {
+                await writer.WriteLineAsync($"-- {item.KindLabel}: {qualified}");
+                await using var definitionCommand = new SqlCommand("""
+                    SELECT sm.definition
+                    FROM sys.sql_modules sm
+                    JOIN sys.objects o ON o.object_id = sm.object_id
+                    JOIN sys.schemas s ON s.schema_id = o.schema_id
+                    WHERE s.name = @schema AND o.name = @name
+                    """, connection) { CommandTimeout = 30 };
+                definitionCommand.Parameters.Add("@schema", SqlDbType.NVarChar, 128).Value = item.Schema;
+                definitionCommand.Parameters.Add("@name", SqlDbType.NVarChar, 128).Value = item.Name;
+                var definition = await definitionCommand.ExecuteScalarAsync(token) as string;
+                await writer.WriteLineAsync(definition ?? $"-- Definition for {qualified} is unavailable or encrypted.");
+                await writer.WriteLineAsync("GO");
+                continue;
+            }
+
+            await writer.WriteLineAsync($"-- Table data: {qualified}");
             await using var command = new SqlCommand($"SELECT TOP (@limit) * FROM {qualified}", connection) { CommandTimeout = 60 };
             command.Parameters.Add("@limit", SqlDbType.Int).Value = limit;
             await using var reader = await command.ExecuteReaderAsync(CommandBehavior.SequentialAccess, token);
@@ -90,7 +146,7 @@ internal static class SqlDataService
             }
             await writer.WriteLineAsync("GO");
         }
-        return (tables.Count, rows);
+        return (objects.Count(item => item.Kind == SqlObjectKind.Table), rows);
     }
 
     public static async Task WriteQuerySnapshotsAsync(StreamWriter writer,
@@ -105,6 +161,8 @@ internal static class SqlDataService
             await writer.WriteLineAsync(new string('-', 100));
             await writer.WriteLineAsync($"-- Query #{index} | Rows: {snapshot.RowCount} | Limit: {snapshot.RowLimit}" +
                                         (snapshot.IsTruncated ? " | More rows available" : string.Empty));
+            if (!string.IsNullOrWhiteSpace(snapshot.Database))
+                await writer.WriteLineAsync($"-- Database: {snapshot.Database}");
             await writer.WriteLineAsync("-- Query:");
             foreach (var line in snapshot.Query.Trim().Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n'))
                 await writer.WriteLineAsync($"-- {line}");

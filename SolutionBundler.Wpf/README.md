@@ -9,7 +9,8 @@
 - اسکن، تازه‌سازی، مرتب‌سازی و انتخاب پسوندها و تخمین تعداد و اندازه‌ی خروجی پیش از تولید
 - نگهداری آخرین مسیر انتخاب‌شده
 - خواندن Connection String از فایل‌های `appsettings*.json`
-- انتخاب جداول SQL Server به‌صورت Schema → Table و محدودیت تعداد ردیف
+- انتخاب Databaseهای در دسترس SQL Server و نمایش Objectها به‌صورت Schema → Object
+- انتخاب Table، View، Function و Stored Procedure؛ خروجی داده‌ی Table و تعریف SQL سایر Objectها
 - اجرای Query دلخواه SQL Server، پیش‌نمایش نتیجه و افزودن چند Query و نتیجه به خروجی
 - افزودن داده‌های Redis با الگوی کلید و محدودیت تعداد کلید/عضو
 - تم Fluent هماهنگ با Light/Dark ویندوز
