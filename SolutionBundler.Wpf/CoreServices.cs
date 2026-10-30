@@ -115,6 +115,56 @@ internal static class CoreServices
             .OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList();
     }
 
+    public static long CalculateTotalSize(IReadOnlyList<string> files, CancellationToken token)
+    {
+        long size = 0;
+        foreach (var file in files)
+        {
+            token.ThrowIfCancellationRequested();
+            try { size += new FileInfo(file).Length + 300; }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
+        }
+        return size;
+    }
+
+    public static (long Size, long Lines, long Words) CalculateTextStatistics(IReadOnlyList<string> files,
+        CancellationToken token)
+    {
+        long size = 0;
+        long lines = 0;
+        long words = 0;
+        foreach (var file in files)
+        {
+            token.ThrowIfCancellationRequested();
+            try
+            {
+                size += new FileInfo(file).Length + 300;
+                using var reader = new StreamReader(file, detectEncodingFromByteOrderMarks: true);
+                string? line;
+                while ((line = reader.ReadLine()) is not null)
+                {
+                    token.ThrowIfCancellationRequested();
+                    lines++;
+                    var insideWord = false;
+                    foreach (var character in line)
+                    {
+                        if (char.IsWhiteSpace(character)) insideWord = false;
+                        else if (!insideWord)
+                        {
+                            words++;
+                            insideWord = true;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // A locked or unreadable file should not prevent statistics for the remaining files.
+            }
+        }
+        return (size, lines, words);
+    }
+
     public static async Task WriteFilesAsync(StreamWriter writer, string root, IReadOnlyList<string> files,
         IProgress<(int current, int total)> progress, CancellationToken token)
     {

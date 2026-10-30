@@ -356,11 +356,32 @@ public partial class MainWindow : Window
         if (roots.Count == 0 || ext.Count == 0) { EstimateText.Text = "Estimated output: —"; return; }
         try
         {
+            EstimateText.Text = "در حال محاسبه تعداد فایل‌ها و حجم...";
             var files = await Task.Run(() => CoreServices.FindFiles(roots, ext, outputPath, CancellationToken.None, hiddenPaths));
-            long size = files.Sum(x => { try { return new FileInfo(x).Length + 300; } catch { return 0; } });
-            EstimateText.Text = $"Estimated files output: {FormatSize(size)} | {files.Count:N0} files";
+            var size = await Task.Run(() => CoreServices.CalculateTotalSize(files, CancellationToken.None));
+            EstimateText.Text = $"Estimated output: {FormatSize(size)} | {files.Count:N0} files";
         }
         catch { EstimateText.Text = "Estimated output: unavailable"; }
+    }
+
+    private async void CountTextStatistics_Click(object sender, RoutedEventArgs e)
+    {
+        if (_fullRoot is null || string.IsNullOrWhiteSpace(OutputPathBox.Text)) return;
+        var roots = SelectedRoots();
+        var extensions = Extensions.Where(item => item.IsChecked).Select(item => item.Name)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (roots.Count == 0 || extensions.Count == 0)
+        { ShowError("پروژه‌ها و پسوندها را انتخاب کنید."); return; }
+        var outputPath = OutputPathBox.Text;
+        var hiddenPaths = _hiddenPaths.ToArray();
+        await RunBusyAsync("در حال محاسبه تعداد خطوط و کلمات...", async token =>
+        {
+            var files = await Task.Run(() => CoreServices.FindFiles(roots, extensions, outputPath, token, hiddenPaths), token);
+            var statistics = await Task.Run(() => CoreServices.CalculateTextStatistics(files, token), token);
+            EstimateText.Text = $"Estimated output: {FormatSize(statistics.Size)} | {files.Count:N0} files | " +
+                                $"{statistics.Lines:N0} lines | {statistics.Words:N0} words";
+            StatusText.Text = $"آمار متن برای {files.Count:N0} فایل محاسبه شد.";
+        });
     }
 
     private void BrowseOutput_Click(object sender, RoutedEventArgs e)
@@ -737,6 +758,7 @@ public partial class MainWindow : Window
     {
         StatusText.Text = message; BusyProgress.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
         GenerateTextButton.IsEnabled = GenerateZipButton.IsEnabled = !busy; CancelButton.IsEnabled = busy;
+        CountTextStatisticsButton.IsEnabled = !busy;
     }
 
     private void ShowError(string message) => MessageBox.Show(this, message, "Solution Bundler", MessageBoxButton.OK, MessageBoxImage.Error);
